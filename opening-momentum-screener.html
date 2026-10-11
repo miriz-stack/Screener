@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Opening Momentum Screener</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1b2431; --panel:#242f3e; --panel-2:#2c3948; --line:#3a4858;
+    --ink:#ece7da; --ink-dim:#a9b0ba; --ink-mute:#73808f;
+    --pass:#5fb49c; --fail:#d06c5c; --warn:#d9a441; --accent:#8fb8de;
+    --r:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:15px;line-height:1.4}
+  body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  button,input,select{font:inherit;color:inherit}
+  a{color:var(--accent)}
+
+  /* clock strip */
+  .strip{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px 10px;display:flex;align-items:baseline;gap:14px}
+  .strip .time{font-size:34px;font-weight:600;letter-spacing:-.5px;line-height:1}
+  .strip .time small{font-size:13px;font-weight:500;color:var(--ink-dim);margin-left:4px}
+  .strip .phase{flex:1;font-size:13px;color:var(--ink-dim)}
+  .strip .phase b{display:block;color:var(--ink);font-weight:600;font-size:14px}
+  .strip .phase.live b{color:var(--warn)}
+
+  main{padding:14px 16px 40px;max-width:720px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:4px 0 2px}
+  .sub{color:var(--ink-dim);font-size:13px;margin:0 0 14px}
+
+  details{background:var(--panel);border-radius:var(--r);margin-bottom:12px}
+  summary{padding:12px 14px;cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between}
+  summary::after{content:"+";color:var(--ink-mute)}
+  details[open] summary::after{content:"–"}
+  .body{padding:0 14px 14px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid .wide{grid-column:1/-1}
+  label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:4px}
+  input,select{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;outline:none}
+  input:focus,select:focus{border-color:var(--accent)}
+  .hint{font-size:12px;color:var(--ink-mute);margin:8px 0 0}
+
+  .actions{display:flex;gap:8px;margin:14px 0}
+  .btn{flex:1;padding:12px;border-radius:var(--r);border:1px solid var(--line);background:var(--panel-2);font-weight:600;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#13202c;border-color:var(--accent)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn.small{flex:0 0 auto;padding:8px 12px;font-size:13px;font-weight:500}
+  .toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-dim)}
+  .toggle input{width:auto}
+
+  #status{font-size:13px;color:var(--ink-dim);min-height:18px;margin-bottom:10px}
+  #status.err{color:var(--fail)}
+
+  .summary-row{display:flex;gap:14px;font-size:13px;color:var(--ink-dim);margin-bottom:10px}
+  .summary-row b{color:var(--ink);font-weight:600}
+
+  .card{background:var(--panel);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;border-left:3px solid var(--line)}
+  .card.pass{border-left-color:var(--pass)}
+  .card.breakout{border-left-color:var(--warn)}
+  .card .head{display:flex;align-items:baseline;gap:10px}
+  .card .sym{font-size:20px;font-weight:700}
+  .card .px{font-size:17px;font-weight:500}
+  .card .chg{font-weight:600}
+  .up{color:var(--pass)} .down{color:var(--fail)}
+  .card .score{margin-left:auto;font-size:12px;color:var(--ink-dim)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{font-size:12px;padding:3px 8px;border-radius:6px;background:var(--panel-2);color:var(--ink-dim);border:1px solid transparent}
+  .chip.ok{color:var(--pass);border-color:rgba(95,180,156,.35)}
+  .chip.no{color:var(--fail);border-color:rgba(208,108,92,.35)}
+  .chip.na{color:var(--ink-mute)}
+  .news{font-size:12px;color:var(--ink-dim);margin-top:8px;border-top:1px solid var(--line);padding-top:6px}
+  .news div{margin:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .or{margin-top:10px;background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px}
+  .or .state{font-weight:600;margin-bottom:4px}
+  .or .state.go{color:var(--warn)} .or .state.bad{color:var(--fail)} .or .state.wait{color:var(--ink-dim)}
+  .or table{width:100%;border-collapse:collapse}
+  .or td{padding:2px 0;color:var(--ink-dim)} .or td:last-child{text-align:right;color:var(--ink)}
+
+  .empty{color:var(--ink-mute);font-size:14px;padding:30px 0;text-align:center}
+  .disclaimer{font-size:12px;color:var(--ink-mute);margin-top:24px;line-height:1.5}
+  @media (prefers-reduced-motion:no-preference){.card{transition:border-color .2s}}
+</style>
+</head>
+<body>
+
+<div class="strip">
+  <div class="time"><span id="clock">--:--</span><small>ET</small></div>
+  <div class="phase" id="phase"><b>Checking the clock</b></div>
+</div>
+
+<main>
+  <h1>Opening momentum screener</h1>
+  <p class="sub">Premarket candidates, then 5-minute opening-range tracking until 10:00 ET.</p>
+
+  <details id="setup" open>
+    <summary>Alpaca keys and data feed</summary>
+    <div class="body">
+      <div class="grid">
+        <div class="wide"><label>API key ID</label><input id="key" autocomplete="off" placeholder="PK..."></div>
+        <div class="wide"><label>API secret key</label><input id="secret" type="password" autocomplete="off"></div>
+        <div class="wide"><label>Data feed</label>
+          <select id="feed">
+            <option value="delayed_sip">Delayed full market (free, 15 min late, true volume)</option>
+            <option value="iex">IEX real-time (free, live prices, only ~2–3% of volume)</option>
+            <option value="sip">Full market real-time (paid Algo Trader Plus plan)</option>
+          </select></div>
+      </div>
+      <div class="actions" style="margin:12px 0 0">
+        <span class="toggle"><input type="checkbox" id="remember"> Remember keys on this device</span>
+        <span style="flex:1"></span>
+        <button class="btn small" id="forget">Forget keys</button>
+      </div>
+      <p class="hint">Unchecked, keys stay in this page's memory and are forgotten when you close it. Checked, they're saved in this browser on this phone only — nobody else can read them, but don't tick it on a shared device. Safari also clears the save after about a week of not opening the page.</p>
+      <p class="hint">Original note: Create free keys at app.alpaca.markets (paper account is fine; the data API is the same). Use the delayed feed for the premarket screen so relative volume is meaningful, then switch to IEX for live breakout tracking if you don't have the paid feed.</p>
+    </div>
+  </details>
+
+  <details id="criteria">
+    <summary>Screening criteria</summary>
+    <div class="body">
+      <div class="grid">
+        <div><label>Min gap % (vs prior close)</label><input id="minChg" type="number" value="3" step="0.5"></div>
+        <div><label>Max gap %</label><input id="maxChg" type="number" value="15" step="0.5"></div>
+        <div><label>Min price $</label><input id="minPx" type="number" value="5"></div>
+        <div><label>Max price $</label><input id="maxPx" type="number" value="100"></div>
+        <div><label>Min volume today (shares)</label><input id="minVol" type="number" value="500000" step="50000"></div>
+        <div><label>Min relative volume (×)</label><input id="minRel" type="number" value="0.5" step="0.1"></div>
+        <div><label>Max spread %</label><input id="maxSpr" type="number" value="0.2" step="0.05"></div>
+        <div><label>Require news in last 24h</label><select id="needNews"><option value="1">Yes</option><option value="0">No</option></select></div>
+        <div><label>Universe size (movers + most active)</label><input id="top" type="number" value="50" min="10" max="100"></div>
+        <div><label>Show</label><select id="show"><option value="pass">Passing only</option><option value="all">Everything screened</option></select></div>
+      </div>
+      <p class="hint">Relative volume is today's volume so far divided by the 20-day average full-day volume. Before the open, 0.3–0.5× is already unusual; after the open the original 3× threshold applies. Market cap isn't available from Alpaca, so check it separately for anything under about $10/share.</p>
+    </div>
+  </details>
+
+  <div class="actions">
+    <button class="btn primary" id="run">Run screen</button>
+    <button class="btn" id="track" disabled>Track opening range</button>
+  </div>
+  <div class="actions" style="margin-top:-6px">
+    <span class="toggle"><input type="checkbox" id="auto"> Auto-refresh every 30s</span>
+    <span style="flex:1"></span>
+    <button class="btn small" id="csv" disabled>Export CSV</button>
+  </div>
+
+  <div id="status"></div>
+  <div class="summary-row" id="summary" hidden></div>
+  <div id="results"><div class="empty">Enter your keys and run the screen. Best run between 8:30 and 9:28 ET.</div></div>
+
+  <p class="disclaimer">This tool surfaces candidates that match rules you set; it does not predict direction and is not investment advice. The screen criteria and the 5-minute opening-range breakout rules are an untested hypothesis until you backtest them with realistic fills, spreads and commissions. Small-cap gappers in particular reverse hard and fill badly.</p>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const DATA = 'https://data.alpaca.markets';
+  let universe = [];        // screened rows
+  let timer = null;
+  let lastMode = 'screen';
+
+  // ---------- time ----------
+  const etParts = (d = new Date()) => {
+    const f = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York', hour12:false, weekday:'short', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    const o = {}; f.formatToParts(d).forEach(p => o[p.type] = p.value);
+    o.hour = o.hour === '24' ? '00' : o.hour;
+    o.mins = +o.hour * 60 + +o.minute;
+    o.date = `${o.year}-${o.month}-${o.day}`;
+    return o;
+  };
+  const etOffsetISO = (dateStr, hh, mm) => {
+    // Build an ISO string for a given ET wall time by probing the offset.
+    const guess = new Date(`${dateStr}T${hh}:${mm}:00Z`);
+    const p = etParts(guess);
+    const diff = (+p.hour * 60 + +p.minute) - (hh * 60 + mm); // minutes ET is ahead of UTC at that moment (negative)
+    return new Date(guess.getTime() - diff * 60000).toISOString();
+  };
+  const tick = () => {
+    const p = etParts();
+    $('clock').textContent = `${p.hour}:${p.minute}`;
+    const ph = $('phase'); ph.classList.remove('live');
+    const wk = ['Sat','Sun'].includes(p.weekday);
+    let t = '';
+    if (wk) t = '<b>Market closed</b>weekend';
+    else if (p.mins < 4*60) t = '<b>Overnight</b>premarket data starts 4:00 ET';
+    else if (p.mins < 9*60+30) t = `<b>Premarket</b>${9*60+30 - p.mins} min to the open — run the screen`;
+    else if (p.mins < 9*60+35) { t = `<b>Opening range forming</b>${9*60+35 - p.mins} min until the 5-minute range is set`; ph.classList.add('live'); }
+    else if (p.mins < 10*60) { t = `<b>Breakout window</b>${10*60 - p.mins} min left — close everything by 10:00`; ph.classList.add('live'); }
+    else if (p.mins < 16*60) t = '<b>Window closed</b>strategy is done for today';
+    else t = '<b>After hours</b>';
+    ph.innerHTML = t;
+    $('track').disabled = !(universe.length && !wk && p.mins >= 9*60+30);
+  };
+  setInterval(tick, 1000); tick();
+
+  // ---------- api ----------
+  const headers = () => ({'APCA-API-KEY-ID': $('key').value.trim(), 'APCA-API-SECRET-KEY': $('secret').value.trim(), 'Accept':'application/json'});
+  async function api(path, params = {}) {
+    const url = new URL(DATA + path);
+    Object.entries(params).forEach(([k,v]) => v !== undefined && v !== '' && url.searchParams.set(k, v));
+    let r;
+    try { r = await fetch(url, {headers: headers()}); }
+    catch (e) { throw new Error('Could not reach Alpaca. If you are viewing this inside another app, open the file directly in Safari or Chrome. ' + e.message); }
+    if (r.status === 401 || r.status === 403) throw new Error('Alpaca rejected the keys (' + r.status + '). Check the key ID and secret' + (r.status===403 ? ', or this feed needs a paid plan.' : '.'));
+    if (r.status === 429) throw new Error('Rate limit hit (200 requests/min on the free plan). Wait a minute and retry.');
+    if (!r.ok) throw new Error(`Alpaca error ${r.status}: ${(await r.text()).slice(0,160)}`);
+    return r.json();
+  }
+  const chunk = (a, n) => { const o=[]; for (let i=0;i<a.length;i+=n) o.push(a.slice(i,i+n)); return o; };
+  async function bars(symbols, timeframe, start, end, feed) {
+    const out = {};
+    for (const c of chunk(symbols, 100)) {
+      let token;
+      do {
+        const r = await api('/v2/stocks/bars', {symbols:c.join(','), timeframe, start, end, limit:10000, feed, adjustment:'raw', page_token: token});
+        Object.entries(r.bars || {}).forEach(([s,b]) => (out[s] = (out[s]||[]).concat(b)));
+        token = r.next_page_token;
+      } while (token);
+    }
+    return out;
+  }
+
+  // ---------- screen ----------
+  const num = id => parseFloat($('' + id).value);
+  const fmtV = v => v >= 1e6 ? (v/1e6).toFixed(2)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : String(v||0);
+  const setStatus = (m, err=false) => { $('status').textContent = m; $('status').className = err ? 'err' : ''; };
+
+  async function runScreen() {
+    if (!$('key').value || !$('secret').value) return setStatus('Enter your Alpaca key ID and secret first.', true);
+    $('run').disabled = true; lastMode = 'screen';
+    try {
+      const feed = $('feed').value, top = Math.min(100, Math.max(10, num('top')));
+      setStatus('Pulling top movers and most active names…');
+      const [mv, ma] = await Promise.all([
+        api('/v1beta1/screener/stocks/movers', {top}),
+        api('/v1beta1/screener/stocks/most-actives', {by:'volume', top})
+      ]);
+      const syms = [...new Set([...(mv.gainers||[]).map(x=>x.symbol), ...(ma.most_actives||[]).map(x=>x.symbol)])]
+        .filter(s => /^[A-Z]{1,5}$/.test(s));
+      if (!syms.length) throw new Error('Alpaca returned no symbols. Outside 4:00–20:00 ET the screener lists may be empty.');
+
+      setStatus(`Snapshots for ${syms.length} symbols…`);
+      const snaps = {};
+      for (const c of chunk(syms, 100)) Object.assign(snaps, await api('/v2/stocks/snapshots', {symbols:c.join(','), feed}));
+
+      setStatus('20-day average volume…');
+      const today = etParts().date;
+      const startD = new Date(Date.now() - 35*864e5).toISOString().slice(0,10);
+      const yday = new Date(Date.now() - 864e5).toISOString().slice(0,10);
+      const daily = await bars(syms, '1Day', startD, yday, 'sip');
+
+      setStatus('News from the last 24 hours…');
+      const newsBy = {};
+      try {
+        for (const c of chunk(syms, 50)) {
+          const r = await api('/v1beta1/news', {symbols:c.join(','), start:new Date(Date.now()-864e5).toISOString(), limit:50, sort:'desc'});
+          (r.news||[]).forEach(n => (n.symbols||[]).forEach(s => { if (syms.includes(s)) (newsBy[s] = newsBy[s]||[]).push(n.headline); }));
+        }
+      } catch (e) { setStatus('News lookup failed (' + e.message + '); continuing without it.'); }
+
+      const crit = {minChg:num('minChg'), maxChg:num('maxChg'), minPx:num('minPx'), maxPx:num('maxPx'), minVol:num('minVol'), minRel:num('minRel'), maxSpr:num('maxSpr'), needNews:$('needNews').value==='1'};
+      universe = syms.map(s => {
+        const sn = snaps[s] || {}, lt = sn.latestTrade || {}, q = sn.latestQuote || {}, db = sn.dailyBar || {}, pb = sn.prevDailyBar || {};
+        const d = (daily[s]||[]).filter(b => b.t.slice(0,10) !== today);
+        const avg = d.length ? d.slice(-20).reduce((a,b)=>a+b.v,0) / Math.min(20,d.length) : null;
+        const price = lt.p ?? db.c ?? null, prev = pb.c ?? null;
+        const chg = price && prev ? (price-prev)/prev*100 : null;
+        const vol = db.v ?? 0;
+        const rel = avg ? vol/avg : null;
+        const spr = q.ap && q.bp ? (q.ap-q.bp)/((q.ap+q.bp)/2)*100 : null;
+        const news = newsBy[s] || [];
+        const checks = [
+          ['Gap', chg!=null ? `${chg>=0?'+':''}${chg.toFixed(1)}%` : '—', chg!=null && chg>=crit.minChg && chg<=crit.maxChg],
+          ['Price', price!=null ? `$${price.toFixed(2)}` : '—', price!=null && price>=crit.minPx && price<=crit.maxPx],
+          ['Volume', fmtV(vol), vol>=crit.minVol],
+          ['Rel vol', rel!=null ? rel.toFixed(2)+'×' : '—', rel!=null && rel>=crit.minRel],
+          ['Spread', spr!=null ? spr.toFixed(2)+'%' : '—', spr!=null && spr<=crit.maxSpr],
+          ['News', news.length ? `${news.length} in 24h` : 'none', crit.needNews ? news.length>0 : null],
+        ];
+        const graded = checks.filter(c => c[2] !== null);
+        const passed = graded.filter(c => c[2]).length;
+        return {s, price, chg, vol, rel, spr, avg, news, checks, passed, total:graded.length, pass: passed===graded.length, or:null};
+      });
+      universe.sort((a,b) => (b.pass-a.pass) || (b.passed-a.passed) || ((b.rel||0)-(a.rel||0)));
+      $('setup').open = false;
+      const t = etParts();
+      setStatus(`Screened ${universe.length} names at ${t.hour}:${t.minute} ET (${feed}).`);
+      $('csv').disabled = false;
+      render();
+    } catch (e) { setStatus(e.message, true); }
+    $('run').disabled = false; tick();
+  }
+
+  // ---------- opening range ----------
+  async function trackOR() {
+    if (!universe.length) return;
+    lastMode = 'track'; $('track').disabled = true;
+    try {
+      const feed = $('feed').value, today = etParts().date;
+      const picks = universe.filter(u => $('show').value==='all' ? true : u.pass).map(u => u.s);
+      if (!picks.length) return setStatus('No passing names to track. Switch "Show" to everything to track the whole list.', true);
+      setStatus(`1-minute bars for ${picks.length} names…`);
+      const mb = await bars(picks, '1Min', etOffsetISO(today, 9, 30), undefined, feed);
+      universe.forEach(u => {
+        const b = (mb[u.s]||[]).filter(x => { const p = etParts(new Date(x.t)); return p.mins >= 9*60+30; });
+        if (!b.length) { u.or = null; return; }
+        const first5 = b.slice(0,5);
+        const orH = Math.max(...first5.map(x=>x.h)), orL = Math.min(...first5.map(x=>x.l));
+        const pv = b.reduce((a,x)=>a+(x.vw ?? x.c)*x.v,0), vv = b.reduce((a,x)=>a+x.v,0);
+        const vwap = vv ? pv/vv : null, last = b[b.length-1].c;
+        const avg5 = first5.reduce((a,x)=>a+x.v,0)/first5.length;
+        const brk = b.slice(5).find(x => x.c > orH);
+        const ready = b.length >= 5;
+        let state = 'wait', label = `Range forming (${b.length}/5 min)`;
+        if (ready) {
+          if (last < orL) { state='bad'; label='Failed — below opening-range low'; }
+          else if (brk && last > orH && vwap && last > vwap) { state='go'; label='Breakout above range, holding VWAP'; }
+          else if (brk) { state='wait'; label='Broke out, now back inside or under VWAP'; }
+          else { state='wait'; label='Inside range — waiting'; }
+        }
+        u.or = {orH, orL, vwap, last, bars:b.length, ready, state, label, brkVolX: brk && avg5 ? brk.v/avg5 : null,
+                stop: orL, target: orH + 2*(orH-orL), risk: orH-orL};
+      });
+      universe.sort((a,b) => {
+        const rank = x => !x.or ? 0 : x.or.state==='go' ? 3 : x.or.state==='wait' && x.or.ready ? 2 : 1;
+        return (rank(b)-rank(a)) || (b.pass-a.pass) || ((b.rel||0)-(a.rel||0));
+      });
+      const t = etParts();
+      setStatus(`Opening-range update ${t.hour}:${t.minute} ET (${feed}${feed==='delayed_sip'?', 15 min delayed':''}).`);
+      render();
+    } catch (e) { setStatus(e.message, true); }
+    tick();
+  }
+
+  // ---------- render ----------
+  function render() {
+    const show = $('show').value;
+    const rows = universe.filter(u => show==='all' || u.pass);
+    const passN = universe.filter(u=>u.pass).length, goN = universe.filter(u=>u.or&&u.or.state==='go').length;
+    const sum = $('summary'); sum.hidden = false;
+    sum.innerHTML = `<span><b>${universe.length}</b> screened</span><span><b>${passN}</b> pass</span>` + (lastMode==='track' ? `<span><b>${goN}</b> breaking out</span>` : '');
+    if (!rows.length) { $('results').innerHTML = '<div class="empty">Nothing passes every criterion right now. Loosen a threshold or switch "Show" to everything.</div>'; return; }
+    $('results').innerHTML = rows.map(u => `
+      <div class="card ${u.or&&u.or.state==='go' ? 'breakout' : u.pass ? 'pass' : ''}">
+        <div class="head">
+          <span class="sym">${u.s}</span>
+          <span class="px">${u.price!=null ? '$'+u.price.toFixed(2) : '—'}</span>
+          <span class="chg ${u.chg>=0?'up':'down'}">${u.chg!=null ? (u.chg>=0?'+':'')+u.chg.toFixed(1)+'%' : ''}</span>
+          <span class="score">${u.passed}/${u.total}</span>
+        </div>
+        <div class="chips">${u.checks.map(c => `<span class="chip ${c[2]===null?'na':c[2]?'ok':'no'}">${c[0]} ${c[1]}</span>`).join('')}</div>
+        ${u.avg ? `<div class="chips"><span class="chip na">20d avg vol ${fmtV(u.avg)}</span></div>` : ''}
+        ${u.or ? `<div class="or">
+          <div class="state ${u.or.state}">${u.or.label}</div>
+          <table>
+            <tr><td>5-min range</td><td>$${u.or.orL.toFixed(2)} – $${u.or.orH.toFixed(2)}</td></tr>
+            <tr><td>Last</td><td>$${u.or.last.toFixed(2)}</td></tr>
+            <tr><td>VWAP</td><td>${u.or.vwap ? '$'+u.or.vwap.toFixed(2) : '—'} ${u.or.vwap ? (u.or.last>u.or.vwap ? '<span class="up">above</span>' : '<span class="down">below</span>') : ''}</td></tr>
+            ${u.or.brkVolX ? `<tr><td>Breakout-bar volume</td><td>${u.or.brkVolX.toFixed(1)}× first-5 avg</td></tr>` : ''}
+            <tr><td>Entry / stop / 2R target</td><td>$${u.or.orH.toFixed(2)} / $${u.or.stop.toFixed(2)} / $${u.or.target.toFixed(2)}</td></tr>
+            <tr><td>Risk per share</td><td>$${u.or.risk.toFixed(2)} (${(u.or.risk/u.or.orH*100).toFixed(1)}%)</td></tr>
+          </table></div>` : ''}
+        ${u.news.length ? `<div class="news">${u.news.slice(0,2).map(h=>`<div>${h.replace(/</g,'&lt;')}</div>`).join('')}</div>` : ''}
+      </div>`).join('');
+  }
+
+  // ---------- csv ----------
+  function exportCSV() {
+    const t = etParts();
+    const head = ['symbol','price','gap_pct','volume','rel_vol','avg_vol_20d','spread_pct','news_24h','pass','or_low','or_high','vwap','last','or_state'];
+    const lines = [head.join(',')].concat(universe.map(u => [u.s, u.price, u.chg?.toFixed(2), u.vol, u.rel?.toFixed(3), u.avg?.toFixed(0), u.spr?.toFixed(3), u.news.length, u.pass,
+      u.or?.orL, u.or?.orH, u.or?.vwap?.toFixed(3), u.or?.last, u.or?.label].map(v => v==null ? '' : `"${String(v).replace(/"/g,'""')}"`).join(',')));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([lines.join('\n')], {type:'text/csv'}));
+    a.download = `screen_${t.date}_${t.hour}${t.minute}ET.csv`; a.click();
+  }
+
+  // ---------- wiring ----------
+  // key persistence (opt-in, this browser only)
+  const K = 'alpaca_keys_v1';
+  const saveKeys = () => {
+    try {
+      if ($('remember').checked) localStorage.setItem(K, JSON.stringify({k:$('key').value.trim(), s:$('secret').value.trim(), f:$('feed').value}));
+      else localStorage.removeItem(K);
+    } catch (e) { setStatus('This browser is blocking storage (private mode?), so keys will not be remembered.', true); }
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(K) || 'null');
+    if (saved) { $('key').value = saved.k || ''; $('secret').value = saved.s || ''; if (saved.f) $('feed').value = saved.f; $('remember').checked = true; $('setup').open = false; }
+  } catch (e) {}
+  $('remember').onchange = saveKeys;
+  ['key','secret','feed'].forEach(id => $(id).onchange = () => $('remember').checked && saveKeys());
+  $('forget').onclick = () => {
+    try { localStorage.removeItem(K); } catch (e) {}
+    $('key').value = ''; $('secret').value = ''; $('remember').checked = false;
+    setStatus('Saved keys cleared from this device.');
+  };
+
+  $('run').onclick = () => { saveKeys(); runScreen(); };
+  $('track').onclick = trackOR;
+  $('csv').onclick = exportCSV;
+  $('show').onchange = () => universe.length && render();
+  $('auto').onchange = e => {
+    clearInterval(timer); timer = null;
+    if (e.target.checked) timer = setInterval(() => lastMode==='track' ? trackOR() : runScreen(), 30000);
+  };
+})();
+</script>
+</body>
+</html>
